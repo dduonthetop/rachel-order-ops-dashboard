@@ -12,11 +12,11 @@
   const PRODUCT_KEYS = ["p1", "p2", "p3", "p4", "p5"];
 
   const fileInput = document.getElementById("inventoryFileInput");
-  const updateBtn = document.getElementById("inventoryUpdateBtn");
-  const resetBtn = document.getElementById("inventoryResetBtn");
+  const updateBtn = document.getElementById("inventoryUploadButton");
+  const resetBtn = document.getElementById("inventoryResetButton");
   const statusEl = document.getElementById("uploadStatus");
-  const fileLabelEl = document.getElementById("uploadFileLabel");
-  const sourceLabelEl = document.getElementById("uploadSourceLabel");
+  const fileLabelEl = document.getElementById("uploadFilesChip") || document.getElementById("uploadFileLabel");
+  const sourceLabelEl = document.getElementById("uploadSourceChip") || document.getElementById("uploadSourceLabel");
 
   if (!fileInput || !updateBtn || !resetBtn || !statusEl || !fileLabelEl || !sourceLabelEl) return;
 
@@ -31,7 +31,10 @@
   }
 
   function updatePanelMeta(selectedFiles, sourceText) {
-    const names = selectedFiles && selectedFiles.length ? selectedFiles.map((file) => file.name).join(", ") : "없음";
+    const normalizedFiles = Array.isArray(selectedFiles)
+      ? selectedFiles
+      : Array.from(selectedFiles || fileInput.files || []);
+    const names = normalizedFiles.length ? normalizedFiles.map((file) => file.name).join(", ") : "없음";
     fileLabelEl.textContent = `선택 파일: ${names}`;
     const current = api.getData();
     sourceLabelEl.textContent = `데이터 원본: ${sourceText || current.file_name || "기본 내장 데이터"}`;
