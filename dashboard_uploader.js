@@ -50,8 +50,23 @@
     return String(value).padStart(2, "0");
   }
 
+  function parseSheetDateParts(sheetName) {
+    if (typeof sheetName !== "string") return null;
+    const trimmed = sheetName.trim();
+    const match = /^(\d{1,2})\s*[-./]\s*(\d{1,2})$/.exec(trimmed);
+    if (!match) return null;
+    return {
+      month: Number(match[1]),
+      day: Number(match[2]),
+    };
+  }
+
   function toLocalYmd(date) {
     return api.localYmd(date);
+  }
+
+  function utcYmd(date) {
+    return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
   }
 
   function excelNumberToDate(value) {
@@ -59,6 +74,22 @@
     const parsed = XLSX.SSF.parse_date_code(value);
     if (!parsed) return null;
     return new Date(parsed.y, parsed.m - 1, parsed.d);
+  }
+
+  function excelValueToYmd(value) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return utcYmd(value);
+    if (typeof value === "number") {
+      const parsed = excelNumberToDate(value);
+      return parsed ? toLocalYmd(parsed) : null;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      const directMatch = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/.exec(trimmed);
+      if (directMatch) return `${directMatch[1]}-${pad2(directMatch[2])}-${pad2(directMatch[3])}`;
+      const parsed = new Date(trimmed);
+      if (!Number.isNaN(parsed.getTime())) return utcYmd(parsed);
+    }
+    return null;
   }
 
   function toDate(value) {
@@ -111,17 +142,16 @@
       let prevMonth = null;
 
       workbook.SheetNames.forEach((sheetName) => {
-        const match = /^(\d{2})-(\d{2})$/.exec(sheetName);
-        if (!match) return;
+        const parsedSheetDate = parseSheetDateParts(sheetName);
+        if (!parsedSheetDate) return;
 
-        const mm = Number(match[1]);
-        const dd = Number(match[2]);
+        const mm = parsedSheetDate.month;
+        const dd = parsedSheetDate.day;
         if (prevMonth !== null && mm < prevMonth) yearHint += 1;
         prevMonth = mm;
 
         const sheet = workbook.Sheets[sheetName];
-        const rawDate = toDate(cellValue(sheet, 2, 1));
-        const dateStr = rawDate ? toLocalYmd(rawDate) : `${yearHint}-${pad2(mm)}-${pad2(dd)}`;
+        const dateStr = `${yearHint}-${pad2(mm)}-${pad2(dd)}`;
         const bucket = ensureDayBucket(dailyData, dateStr);
 
         [5, 10, 15, 20, 25].forEach((startRow) => {
@@ -145,9 +175,9 @@
           for (let col = 2; col < ttlCol; col += 1) {
             const qty = Number(cellValue(sheet, qtyRow, col) || 0);
             if (!Number.isFinite(qty) || qty <= 0) continue;
-            const expiryDate = toDate(cellValue(sheet, expRow, col));
+            const expiryDate = excelValueToYmd(cellValue(sheet, expRow, col));
             lots.push({
-              expiry: expiryDate ? toLocalYmd(expiryDate) : null,
+              expiry: expiryDate || null,
               qty: Math.trunc(qty),
             });
           }
